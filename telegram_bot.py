@@ -1,17 +1,18 @@
 import os
-import csv
 from datetime import datetime
 from dotenv import load_dotenv
 import google.generativeai as genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Загружаем переменные окружения
+# Загрузка переменных окружения
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-CSV_FILE = 'chat_logs.csv'
+SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
 
 # Настройка Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -23,13 +24,15 @@ SYSTEM_PROMPT = (
     "and other questions about education. You need to give clear, understandable, and detailed answers."
 )
 
-# Инициализация CSV при первом запуске
-if not os.path.exists(CSV_FILE):
-    with open(CSV_FILE, mode='w', encoding='utf-8', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['timestamp', 'user_id', 'username', 'user_message', 'bot_response'])
+# Подключение к Google Таблице
+def connect_to_sheet():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+    return sheet
 
-# Обработка входящих сообщений
+# Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = update.message.from_user.id
@@ -44,9 +47,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(bot_reply)
 
-    with open(CSV_FILE, mode='a', encoding='utf-8', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow([timestamp, user_id, username, user_message, bot_reply])
+    # Лог в Google Sheets
+    sheet = connect_to_sheet()
+    sheet.append_row([timestamp, str(user_id), username, user_message, bot_reply])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
