@@ -1,15 +1,19 @@
 import os
 import csv
 from datetime import datetime
+from dotenv import load_dotenv
 import google.generativeai as genai
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 
-TELEGRAM_BOT_TOKEN = '7851441019:AAEYGL4CUABCbbnM5crQcFZ5x9uGiRmX61U'
-GEMINI_API_KEY = 'AIzaSyDdPGFovPvDonpEXmbDiVwB951Av3nmZFA'
+# Загружаем переменные окружения
+load_dotenv()
 
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 CSV_FILE = 'chat_logs.csv'
 
+# Настройка Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -19,11 +23,13 @@ SYSTEM_PROMPT = (
     "and other questions about education. You need to give clear, understandable, and detailed answers."
 )
 
+# Инициализация CSV при первом запуске
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, mode='w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['timestamp', 'user_id', 'username', 'user_message', 'bot_response'])
 
+# Обработка входящих сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = update.message.from_user.id
@@ -42,8 +48,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         writer = csv.writer(file)
         writer.writerow([timestamp, user_id, username, user_message, bot_reply])
 
-from telegram.ext import CommandHandler
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hello! I am a bot that answers your questions about education. Just write your question, and I will try to answer it as clearly as possible. 🎓"
@@ -51,11 +55,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
-    
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
     print("Бот запущен...")
     app.run_polling()
 
